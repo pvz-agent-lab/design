@@ -1,0 +1,103 @@
+# pvz-agent-lab 架构总览
+
+状态：设计草稿。
+
+目标是把真实 PvZ 运行时变成一个可以反复驱动、记录和分支探索的游戏系统。游戏内的确定性由 AvZ fork 负责；一个 `pvz-session` 实例拥有一局 live game；agent-loop 负责决定做什么；trajectory-recorder 记录发生了什么；trajectory-loader 负责把已有轨迹重新变成可执行分支；rollout-utils 和 train 消费封存数据。
+
+## 心智模型
+
+把系统看成四层：
+
+```text
+模型/搜索决定动作
+        │
+        ▼
+agent-loop
+        │  请求观察、动作和推进
+        ▼
+pvz-session ───────────── video-recorder
+        │                         │
+        │ IPC                     │ 画面/音频/demo
+        ▼                         │
+AvZ fork inside game             │
+        │                         │
+        ▼                         │
+原版 PvZ 引擎                    │
+        │                         │
+        └──── S / receipts ───────┘
+                    │
+                    ▼
+          trajectory-recorder
+                    │
+                    ├── trajectory-loader → 新的执行分支
+                    ├── rollout-utils     → 数据集
+                    └── train              → 训练
+```
+
+`S` 是系统用于确定性推进和分支的语义游戏状态。它不是给模型看的全部输入，也不是整个进程内存。模型看到的 observation 可以是 `S` 的投影；视频是演示产物；数据集是已录制轨迹的组织方式。
+
+## 单局和支路
+
+一个 `pvz-session` 实例对应：
+
+- 一个隔离的 `popcapgame1.exe`；
+- 一个固定版本的 AvZ runtime；
+- 一个 IPC 控制通道；
+- 一套用户档、资源、临时文件和清理责任。
+
+它拥有一局 live game。agent-loop 要探索另一条方案时，不把同一个 session 变成多局，而是让 trajectory-loader 从某个 `FrameRef` 建立一个新的执行分支：第一版可以新建 session 并重放，后续可以调用 AvZ 的 native restore 或 branch backend。
+
+执行分支和证据树不是同一个东西：
+
+```text
+BranchHandle       = 可以继续执行的游戏分支
+BranchRecord       = recorder 保存的父子关系和证据引用
+```
+
+session/AvZ 产生前者，trajectory-recorder 记录后者。
+
+## `S`、动作和记录
+
+```text
+S_t       语义状态
+A_t       AvZ/session 可以执行的语义动作
+O_t       agent-loop 或模型使用的 observation 投影
+R_t       rollout-utils/train 派生或计算的 reward/评估结果
+```
+
+一次受控更新由 AvZ fork 执行：
+
+```text
+S_t + A_t + 确定性控制
+    → 原版引擎更新
+    → S_(t+1) + native/RNG/clock 等 receipts
+```
+
+trajectory-recorder 记录这组事实。它不执行 `A_t`，不推进游戏，也不解释某个原生事件为什么发生。producer 发出边界和事件标记，recorder 保存它们。
+
+## Repo 关系
+
+| Repo | 关注对象 | 不负责的事情 |
+|---|---|---|
+| `avz` | 游戏线程、原生动作、确定性控制、状态导出 | 模型、数据集、训练、进程外生命周期 |
+| `pvz-session` | 单局进程、IPC、执行句柄、清理 | RNG 实现、模型循环、数据集 |
+| `trajectory-recorder` | `S` 轨迹、边界、回执、封存 | 执行动作、加载分支、视频 |
+| `trajectory-loader` | 从轨迹重算/恢复执行分支 | 直接写内存、定义新状态 schema |
+| `video-recorder` | 画面、音频、时间轴和 demo | `S`、trajectory、搜索分支 |
+| `agent-loop` | 模型推理、动作循环、搜索编排 | 游戏内存、确定性实现、训练 batch |
+| `rollout-utils` | 数据集索引、过滤、切分、转换 | 游戏进程、模型推理、状态定义 |
+| `train` | policy/value/RL 训练方案 | 游戏控制和在线进程管理 |
+
+## 依赖方向
+
+```text
+avz                  ← pvz-session ← agent-loop
+avz                  → pvz-session → trajectory-recorder
+agent-loop           → trajectory-recorder
+agent-loop           → trajectory-loader → pvz-session
+trajectory-recorder  ← rollout-utils ← train
+trajectory-recorder  ← train
+pvz-session           → video-recorder
+```
+
+只有 trajectory-recorder 定义公共的 `S`、Frame、Transition、Episode、Branch 记录格式。trajectory-loader 读取这些格式并建立执行分支，但不产生第二套状态定义。
