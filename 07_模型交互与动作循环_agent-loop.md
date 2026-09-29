@@ -26,7 +26,8 @@ observe
 - model inference、动作解析和策略约束；
 - request ID、版本、超时、取消和终局处理；
 - control、intervention、rerun 和 search branch 编排；
-- 调用 trajectory-loader 建立候选执行分支；
+- 搜索热路径通过 session capture/restore 建立候选执行分支；从持久化轨迹恢复或重算时调用 trajectory-loader；
+- 显式选择快速恢复或重算以及回退策略，管理 checkpoint 预算与释放；串行搜索复用 session，并行搜索使用多个 worker，不把临时 checkpoint 假定为可跨进程迁移；
 - 将 producer 事件和动作结果交给 trajectory-recorder；
 - 输出 rollout/episode 引用。
 

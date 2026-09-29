@@ -41,6 +41,10 @@ trajectory-recorder 保存 producer 发来的 `root_started`、`tick_recorded`�
 - `Episode`：一局或一段连续记录；
 - `BranchRecord`：父 frame、分支动作和子轨迹的证据关系。
 
+快速恢复和重算的分支都使用上述公共记录。recorder 保存 producer 提供的 checkpoint 引用、父 frame、兼容性身份、作用域、实际 backend 和恢复/重放 receipts；checkpoint 的原生 payload 与恢复闭包由 AvZ 定义。`S` 或 native receipts 本身不承诺可以恢复执行。
+
+持久化包若声明支持恢复，必须封存其所引用的可持久化恢复材料并纳入完整性关系；仅进程内有效的 checkpoint handle 要明确记录为临时引用，不能在 session 结束后仍宣称可加载。离线读取轨迹不要求启动 native runtime。
+
 ## 负责什么
 
 - 每 tick/边界的结构化写入；
