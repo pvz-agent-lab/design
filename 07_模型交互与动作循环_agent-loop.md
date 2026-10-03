@@ -25,6 +25,7 @@ observe
 - observation 到模型输入的组织；
 - model inference、动作解析和策略约束；
 - request ID、版本、超时、取消和终局处理；
+- 每次 commit 提交一个明确动作，使用上一实际结果的 BoundaryRef 串行提交，保留同 tick 内动作顺序；需要推进时显式调用 advance，不将多个候选动作合并成无序集合；
 - control、intervention、rerun 和 search branch 编排；
 - 在线分支控制根据有效 checkpoint 或保留的 root/动作历史选择恢复或重算，经 session 调用 AvZ；从持久化轨迹建立执行起点时调用离线轨迹加载器 trajectory-loader；
 - 显式选择快速恢复或重算以及回退策略，管理 checkpoint 预算与释放；串行搜索复用 session，并行搜索使用多个 worker，不把临时 checkpoint 假定为可跨进程迁移；

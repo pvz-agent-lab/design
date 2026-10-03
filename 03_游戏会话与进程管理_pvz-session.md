@@ -53,15 +53,39 @@ session 只返回执行句柄和运行结果，不定义证据树。证据树由
 ## 接口心智模型
 
 ```text
-observe()        读取当前稳定边界
-commit(actions)  请求 runtime 在游戏线程执行语义动作
-advance(n)       请求 runtime 执行 n 个实际更新
-pause()          请求进入可观察的暂停边界
-capture()        请求 AvZ 捕获当前稳定边界 checkpoint
-restore(ref)     请求 AvZ 恢复 checkpoint，确认状态并切换执行代次
-release(ref)     释放 checkpoint 及其关联资源
-status()         查询 session/进程/runtime 状态
-close()          关闭通道、进程和所有自有资源
+observe()                                     读取当前稳定边界
+commit(action, expected_boundary, request_id)   请求执行一个语义动作
+advance(n)                                    请求 n 个实际更新
+pause()                                       请求进入可观察的暂停边界
+capture() -> CheckpointHandle                  捕获当前实际边界的恢复材料
+restore(checkpoint: CheckpointHandle)          恢复并确认状态，切换执行代次
+release(checkpoint: CheckpointHandle)          释放恢复材料及其关联资源
+status()                                      查询 session/进程/runtime 状态
+close()                                       关闭通道、进程和所有自有资源
 ```
 
 上述为设计接口心智模型，不表示当前均已实现。所有结果必须保留实际执行量、版本和错误语义；session 不把部分执行伪装成成功。
+
+## 单动作提交契约
+
+```text
+commit(
+    action: Action,
+    expected_boundary: BoundaryRef,
+    request_id: RequestId
+) -> ActionReceipt
+```
+
+| 参数 | 含义与约束 |
+|---|---|
+| action | 一个有类型的操作及该类型定义的参数，例如 shovel 的目标位置或 plant 的卡槽与位置；字段含义固定，不接受动作集合 |
+| expected_boundary | session_id、execution_generation、tick、稳定阶段 phase 和 state_version；同一 tick 内状态版本仍可变化 |
+| request_id | 在该 session 的执行代次内唯一，标识一次提交，用于关联请求、执行结果和证据；不能用新 ID 重发结果未知的动作来冒充安全重试 |
+
+BoundaryRef 是在线执行的并发校验令牌；FrameRef 是轨迹中的记录身份；CheckpointHandle 是受生命周期约束的恢复材料引用。producer 负责关联它们，调用方不能把某个历史 FrameRef 当成当前执行令牌或 checkpoint。
+
+ActionReceipt 保留 request_id、执行前后 BoundaryRef、动作类型及参数、实际执行结果与已完成工作、失败或未知原因。AvZ 在游戏线程验证预期边界；旧执行代次或旧状态版本的请求必须在动作产生副作用前拒绝。
+
+一个动作完成并确认稳定边界后，调用方才使用返回的新边界提交下一个动作。执行期间不夹入另一个外部动作、capture/restore 或 tick update。commit 不请求 update，每次动作改变状态时 state_version 更新，tick 可以不变；advance 才请求推进 tick。例如先 shovel 再 plant 和先 plant 再 shovel，即使随后都 advance(1)，仍是不同的动作路径。并发请求不能靠网络到达顺序替调用方定义意图，必须逐个匹配预期边界。
+
+“不可交错执行”不等于“失败自动回滚”。每种动作要声明可能产生的部分副作用；未知结果不得自动重试，无法确认实际边界时先阻止后续变更。基础接口不提供批量 actions，未来如需批量优化，另行定义顺序、逐项结果、失败停止及 update 插入规则。

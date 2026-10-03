@@ -21,27 +21,30 @@ trajectory-loader 定位为离线轨迹加载器：从持久化轨迹解析材�
 
 - `X_t`：游戏和 AvZ 在边界 t 的完整活动执行状态。
 - `C_t`（live checkpoint）：AvZ 在受支持边界捕获、可重复恢复的材料，由 session 管理其句柄和寿命。它服务 native_restore，不是活动游戏实例；具体是复制、共享状态还是其他表示，尚待实验确定。
-- `P_t`（checkpoint artifact）：可选的持久化恢复材料，只有 AvZ 明确提供兼容的导出/导入能力时存在；普通句柄不能直接序列化后跨进程使用。
-- traj：帧、动作、推进边界与证据的历史记录，可以引用 P_t，但不因此等同于完整 checkpoint。
+- `checkpoint_artifact_t`：边界 t 的可选持久化恢复材料，只有 AvZ 明确提供兼容的导出/导入能力时存在；普通句柄不能直接序列化后跨进程使用。
+- traj：包含语义状态 S 的完整轨迹，保留有序动作、推进边界与执行结果/证据，可引用额外 checkpoint artifact；语义状态轨迹与完整 native 恢复材料的覆盖范围需分别验证。
 
 必须分开描述时间轴上的实际执行和状态表示的变换：
 
 ```text
-root 执行状态 X_0 --执行记录的动作/推进 n 步--> X_t   时间轴推进
-X_t --capture--> C_t --restore--> X_t'                同一逻辑边界的捕获/恢复
-C_t --export（若支持）--> P_t --import（若支持）--> C_t'  表示与资源转换
+root 状态 X_0 --按完整 traj 的动作/推进记录执行，并核对 S--> X_t
+X_t --capture--> C_t --restore--> X_t'  同一逻辑边界的捕获/恢复
+C_t --export（若支持）--> checkpoint_artifact_t
+checkpoint_artifact_t --import（若支持）--> C_t'  表示与资源转换
 ```
 
-最后一条不指定实现必须创建中间 C_t' 对象；AvZ 也可支持直接将 P_t 恢复到活动 runtime。即使格式转换不推进模拟时间，仍可能需要解码、资源重建和兼容性校验。
+最后一条不指定实现必须创建中间 C_t' 对象；AvZ 也可支持直接将 checkpoint artifact 恢复到活动 runtime。即使格式转换不推进模拟时间，仍可能需要解码、资源重建和兼容性校验。
 
-只有 root 与动作历史的 traj，要得到 C_t，通常必须先重算到 X_t 再 capture。这包含实际模拟，不是 JSON 到内存的纯格式变换。除非另行证明轨迹字段覆盖完整恢复契约，否则不能直接将某帧 S 转成 checkpoint。反过来，C_t 可导出当前观察或受支持的 P_t，但不能凭一个 checkpoint 还原过去的全部动作和 receipts。
+完整 traj 没有额外的 native 恢复材料时，loader 从中派生 root、动作与推进的临时重放计划，重算到 X_t，并使用记录的 S 核对沿途与目标结果，之后按需 capture 成 C_t。这个过程包含实际模拟，不是 JSON 到内存的纯格式变换。临时计划不替代完整 traj，也不作为新的薄轨迹类型持久化。
+
+包含 S 不自动证明覆盖了完整恢复契约；若将来证明 S 及其配套控制状态已足够恢复，可启用相应直接恢复能力。在此之前不能把某帧 S 自动转成 checkpoint。反过来，C_t 可导出当前观察或受支持的 checkpoint artifact，但不能凭一个 checkpoint 还原过去的全部动作和 receipts；附加 artifact 也不替代 traj 的语义状态记录。
 
 可省去的步骤取决于已有材料：
 
 - 在线已有 C_t：直接 restore，省去 traj 封存/读取、export/import 和历史重放；仍需恢复结果确认。
 - 已在 X_t：直接执行子分支；若后续需返回该边界，先 capture 并保留 C_t。
-- traj 附带兼容 P_t：加载并恢复，省去 root 到 t 的重放；能否省去中间 live 表示由实现决定。
-- 只有历史记录：重算到 t，必要时 capture 并缓存，将首次重算成本摊到后续搜索；已有较早 checkpoint 时只重放短前缀。
+- 完整 traj 附带兼容 checkpoint artifact：加载并恢复，核对目标 S 和恢复契约要求的状态，省去 root 到 t 的重放；能否省去中间 live 表示由实现决定。
+- 完整 traj 未附额外恢复材料：按其动作与推进记录重算并核对 S，必要时 capture 并缓存，将首次重算成本摊到后续搜索；已有较早 checkpoint 时只重放短前缀。
 
 因此首次物化与重复 checkout 类操作分别计费：近似 O(1) 是有效 checkpoint 已具备时、相对于历史长度的恢复目标，不是任意 traj 首次加载的承诺。
 
@@ -56,7 +59,6 @@ checkpoint 表示、是否支持 export/import、以及中间表示能否省略�
 ```text
 trajectory_id
 root_id / frame_id
-action_plan
 fork_strategy
 checkpoint_ref（快速恢复时提供或从轨迹引用解析）
 fallback_policy（是否允许回退到重算）
@@ -72,6 +74,8 @@ actual_strategy / replay_work / execution_generation
 ```
 
 `reached_frame` 必须由 AvZ/session 的实际状态和版本确认，不能只按重放步数推断。
+
+历史执行计划由 loader 从完整 traj 派生，不把 action_plan 当作独立持久化格式或可覆盖轨迹历史的调用参数。重放保留每个动作的实际顺序、tick 内阶段和前后状态，逐个调用单动作 commit，再按记录调用 advance；使用新执行实例的 BoundaryRef 和请求身份，与历史记录保持关联，而不直接复用历史 session 的在线令牌。记录状态用于逐边界核对，失败、部分执行或顺序不符必须如实返回。
 
 ## 分支建立策略
 
