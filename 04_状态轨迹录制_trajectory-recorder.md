@@ -20,6 +20,8 @@ TransitionRecord = {
 
 它不计算或执行这个 transition。
 
+完整 traj 必须包含语义状态 S、动作及其实际顺序、推进边界和执行结果/证据。root 与动作历史可以被消费方提取成临时重放计划，但项目不定义或持久化一种删除语义状态的薄 traj。
+
 ## producer 和 recorder
 
 AvZ/session/agent-loop 是 producer。它们决定：
@@ -40,6 +42,12 @@ trajectory-recorder 保存 producer 发来的 `root_started`、`tick_recorded`�
 - `TransitionRecord`：相邻状态和动作的记录关系；
 - `Episode`：一局或一段连续记录；
 - `BranchRecord`：父 frame、分支动作和子轨迹的证据关系。
+
+单动作记录按 producer 的实际执行顺序保存，即使多个动作在同一 tick 内发生，也保留各自的请求身份、前后状态/边界及结果。同 tick、不同状态版本的边界不得折叠；动作不可重排或合并为无序集合。重放消费方使用这些记录恢复操作顺序，recorder 本身不执行动作或解释其原子性。
+
+recorder 的核心格式只认识 FrameRef、父子分支关系、producer Receipt 和可选 ArtifactRef。ArtifactRef 描述材料的类型/版本、内容身份、位置和完整性；producer 的扩展 receipt 可以携带下层细节，recorder 原样保存，不解释其执行策略。
+
+recorder 不需要知道分支是通过恢复还是重算建立的，也不解析 native payload、管理内存 checkpoint 或判断材料能否恢复执行。导出材料由相应 producer 生成，打包层按通用 artifact 引用封存；临时运行时引用与持久化材料必须区分。离线完整性校验不等于可恢复性判断，后者由加载方与 runtime 负责。普通轨迹不强制附带恢复材料，离线读取轨迹不要求启动 native runtime。
 
 ## 负责什么
 
