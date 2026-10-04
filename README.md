@@ -13,7 +13,7 @@
 5. [05_轨迹加载与执行支路_trajectory-loader.md](05_轨迹加载与执行支路_trajectory-loader.md)
 6. [06_视频与演示录制_video-recorder.md](06_视频与演示录制_video-recorder.md)
 7. [07_模型交互与动作循环_agent-loop.md](07_模型交互与动作循环_agent-loop.md)
-8. [08_轨迹数据集管理_rollout-utils.md](08_轨迹数据集管理_rollout-utils.md)
+8. [08_轨迹数据集管理_trajectory-dataset.md](08_轨迹数据集管理_trajectory-dataset.md)
 9. [09_训练方案与配置_train.md](09_训练方案与配置_train.md)
 
 ## 模块索引
@@ -27,7 +27,7 @@
 | `trajectory-loader` | 离线轨迹加载、材料来源/执行策略矩阵、checkpoint 与轨迹的转换成本 |
 | `video-recorder` | 视频、音频、时间轴和演示产物 |
 | `agent-loop` | 模型推理、动作循环和分支探索编排 |
-| `rollout-utils` | 封存轨迹的数据集索引、筛选、切分和转换 |
+| `trajectory-dataset` | 封存轨迹的数据集索引、筛选、切分和转换 |
 | `train` | 训练方案、配置、样本适配和模型产物 |
 
 ## 迁移与验收
