@@ -20,6 +20,14 @@ AvZ action / runtime request
 S + receipts
 ```
 
+## 原生 SDK 与在线 bridge
+
+上游 C++ 脚本 SDK、编译与注入能力继续随 AvZ fork 维护。原生脚本在游戏内执行，可以使用调度、条件和回调；预先编译不意味着策略是静态动作表。
+
+在线 bridge 将受支持的观察、动作、推进、checkpoint 和脚本控制请求送到游戏线程，复用原有底层实现。远程接口使用有版本的语义请求与结果，不直接导出进程内指针或 C++ 对象。进程外生命周期和 CLI/SDK 适配归共享控制后端。
+
+原生脚本与外部动作的控制权由后端显式配置，Runtime 在稳定边界落实；脚本调度和回调状态属于恢复闭包审计对象。任意 C++ 全局状态、外部资源和未审计插件不能默认恢复，需返回支持范围或拒绝。
+
 ## 负责什么
 
 - AvZ 语义动作和原生调用封装；
@@ -39,7 +47,7 @@ AvZ 不负责启动或清理外部进程，不负责 IPC client，不负责模�
 
 ## 动作执行契约
 
-基础 commit 请求包含一个 Action、预期 BoundaryRef 和 request_id，具体参数见 [session 单动作提交](03_游戏会话与进程管理_pvz-session.md#单动作提交契约)。AvZ 在受控暂停的稳定边界检查执行代次与状态版本，在游戏线程执行该动作，结束后返回实际前后边界和结果。执行期间不得插入另一个外部动作、checkpoint 操作或下一次 update；commit 本身不推进 tick。
+基础 commit 请求包含一个 Action、预期 BoundaryRef 和 request_id，具体参数见 [session 单动作提交](05_session与执行契约.md#单动作提交契约)。AvZ 在受控暂停的稳定边界检查执行代次与状态版本，在游戏线程执行该动作，结束后返回实际前后边界和结果。执行期间不得插入另一个外部动作、checkpoint 操作或下一次 update；commit 本身不推进 tick。
 
 同 tick 的 shovel→plant 与 plant→shovel 是两条有序执行路径，不得排序、合并或视为同一个动作集合。每次动作导致状态变化时更新状态版本；advance 才请求 tick update。动作内部原生调用的副作用、失败前可能完成的工作和终局行为必须逐个定义。
 
@@ -94,4 +102,4 @@ live checkpoint 是供 native_restore 使用的完整恢复材料及其有效句
 
 各路径分别记录冷启动、历史读取/校验、实际推进、capture、restore、export/import、结果校验和内存占用，并改变历史长度、状态规模、分支次数与缓存预算。每项性能结果都要伴随相同后续动作的逐 tick 一致性证据，检查分支交叉执行是否污染状态。这里列出待验证问题，不声称实验已完成；具体 testbench 与关闭条件在 issue 中维护。
 
-AvZ 提供原语测量，上层提供读取与计划编排的端到端测量，避免只报 restore 耗时而遗漏首次生成 checkpoint 的重算成本。时间轴推进与表示变换的路径见 [loader 转换关系](05_轨迹加载与执行支路_trajectory-loader.md#live-checkpointtraj-与转换路径)。
+AvZ 提供原语测量，上层提供读取与计划编排的端到端测量，避免只报 restore 耗时而遗漏首次生成 checkpoint 的重算成本。时间轴推进与表示变换的路径见 [loader 转换关系](../05_轨迹加载与执行支路_trajectory-loader.md#live-checkpointtraj-与转换路径)。

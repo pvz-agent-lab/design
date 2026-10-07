@@ -4,9 +4,9 @@ Repo：`pvz-agent-lab/trajectory-loader`
 
 ## 角色
 
-trajectory-loader 定位为离线轨迹加载器：从持久化轨迹解析材料并建立可执行起点，服务 agent-loop 和搜索。“离线”描述材料来源，不表示加载时不运行游戏；在线 agent 也可以调用它加载历史起点。名称与独立建仓方式暂沿用当前规划，是否进一步拆包待接口与实验结果确定。
+trajectory-loader 定位为离线轨迹加载器：从持久化轨迹解析材料并建立可执行起点，作为共享控制后端的组件服务 CLI、SDK 和上层搜索。“离线”描述材料来源，不表示加载时不运行游戏；在线 agent 也可以调用它加载历史起点。名称与独立建仓方式暂沿用当前规划，是否进一步拆包待接口与实验结果确定。
 
-项目同时实现快速恢复和重算两种 fork。loader 负责 root/frame/action 与 artifact 引用解析、证据完整性与版本检查、执行计划编排和目标边界核对，使 AvZ 无需理解 dataset 目录、seal 或轨迹存储格式。在线搜索分支控制放在 agent-loop 中，同样通过 session 调用 AvZ 原语，不要求每个候选都经过封存和文件加载。若实现最终仅剩 restore 转发，则不必保留独立 loader repo。
+项目同时实现快速恢复和重算两种 fork。loader 负责 root/frame/action 与 artifact 引用解析、证据完整性与版本检查、执行计划编排和目标边界核对，使 AvZ 无需理解 dataset 目录、seal 或轨迹存储格式。在线分支与 checkout 由共享控制后端编排，同样通过内部 session 调用 AvZ 原语，不要求每个候选都经过封存和文件加载。若实现最终仅剩 restore 转发，则不必保留独立 loader repo。
 
 ## 材料来源与执行策略
 
@@ -50,7 +50,7 @@ checkpoint_artifact_t --import（若支持）--> C_t'  表示与资源转换
 
 ## 待实验确定的表示与成本
 
-checkpoint 表示、是否支持 export/import、以及中间表示能否省略，由 [AvZ 实验](02_游戏内确定性控制_avz.md#checkpoint-表示与成本实验)确定。loader 配合测量材料读取、校验、编排与首次建立执行起点的端到端成本，再决定缓存与格式转换路径；尚未承诺 traj 与 checkpoint 可低成本互转。
+checkpoint 表示、是否支持 export/import、以及中间表示能否省略，由 [AvZ 实验](avz/01_Runtime与原生脚本SDK.md#checkpoint-表示与成本实验)确定。loader 配合测量材料读取、校验、编排与首次建立执行起点的端到端成本，再决定缓存与格式转换路径；尚未承诺 traj 与 checkpoint 可低成本互转。
 
 ## 输入和输出
 
@@ -93,9 +93,15 @@ root 引用必须能解析为兼容的初始化 recipe 或恢复材料；checkpo
 - 读取 trajectory-recorder 的 root/frame/action 记录；
 - 校验版本、seal、动作边界和重放可达性；
 - 选择或接受指定的 fork_strategy；
-- 请求 pvz-session 建立执行实例；
+- 通过共享后端内部 session 接口建立执行实例；
 - 将加载失败、部分重放和目标 frame 不匹配如实返回。
 
 ## 不负责什么
 
 loader 不直接读写游戏内存，不实现 RNG/FP/clock 控制，不定义 `S`，不创建 EvidenceTree 节点，也不把修改几个字段当作状态恢复。
+
+## 与在线控制后端、数据集的边界
+
+loader 负责持久化材料解析、版本/完整性校验、重放计划编排与目标状态核对；后端拥有活动 session、分支身份和资源生命周期。loader 使用后端内部执行接口，不再次调用公共 checkout 入口。
+
+dataset 负责目录、manifest、筛选和切分，可以解析出显式 trajectory/root/frame 引用；loader 接受这些引用及材料定位信息，不查询数据集筛选策略。只有在线 live 材料时无需经过持久化 loader。
