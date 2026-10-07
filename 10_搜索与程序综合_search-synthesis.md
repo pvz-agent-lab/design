@@ -1,6 +1,6 @@
 # 搜索与程序综合
 
-状态：职责设计；模块/仓库名称待定。关联 [#3](https://github.com/pvz-agent-lab/design/issues/3) 与 [#6](https://github.com/pvz-agent-lab/design/issues/6)。
+状态：职责设计；模块/仓库名称待定。
 
 ## 角色
 

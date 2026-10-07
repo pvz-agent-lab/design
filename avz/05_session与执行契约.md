@@ -1,10 +1,10 @@
 # 后端内部 session 与执行契约
 
-归属：在线控制后端的宿主/IPC 层；旧模块名 `pvz-session`，独立包/仓库安排待定。
+归属：在线控制后端的宿主/IPC 层，独立包/仓库安排待定。
 
 ## 角色
 
-`pvz-session` 是物理执行宿主和 IPC 客户端。一个 Session 实例拥有一个 `popcapgame1.exe`、该进程内的一套固定 AvZ runtime、一个控制通道和一套资源/清理责任。同一时刻它承载一个活动逻辑分支，可通过恢复先后承载不同分支；session 数量表示执行资源数量，不等于逻辑对局或分支数量。
+session 层提供物理执行宿主和 IPC 客户端。一个 Session 实例拥有一个 `popcapgame1.exe`、该进程内的一套固定 AvZ runtime、一个控制通道和一套资源/清理责任。同一时刻它承载一个活动逻辑分支，可通过恢复先后承载不同分支；session 数量表示执行资源数量，不等于逻辑对局或分支数量。
 
 它不是泛称的 RL environment，也不在自己进程里模拟 PvZ。
 
@@ -17,7 +17,7 @@ CLI / SDK
         │  控制后端（含 checkout 与 loader 集成）
         │  内部执行请求
         ▼
-pvz-session client
+session / IPC client
         │  启动/拥有 popcapgame1.exe
         │  连接游戏内 AvZ runtime
         ▼

@@ -1,6 +1,6 @@
-# 可选模型与 LLM runner（原 agent-loop）
+# 可选模型与 LLM runner
 
-状态：设计草稿。`agent-loop` 是可选高层 runner 的旧模块名，不再是所有在线使用方式的必经入口；是否保留独立仓库待实现确定。
+状态：设计草稿。runner 是可选的高层策略运行组件，是否独立建仓待实现确定。
 
 ## 角色
 
@@ -22,7 +22,7 @@ observe → 模型输入 / LLM 上下文
 - 每次 commit 使用上一实际结果的 BoundaryRef，显式 advance，处理部分执行和未知结果；
 - 通过 SDK 查询任务、取消和终局，返回 episode/branch 证据引用。
 
-## 下沉与组合
+## 与控制后端的组合
 
 session、IPC、活动分支、checkpoint 生命周期和 checkout 编排归[共享控制后端](avz/04_共享控制后端.md)。runner 可以发起 checkout，但不重复维护恢复机制。搜索器拥有搜索树、候选选择与探索记忆，可组合 runner 或直接使用 SDK。持久化材料由后端集成 loader 解析。
 

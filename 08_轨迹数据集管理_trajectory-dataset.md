@@ -20,7 +20,7 @@ trajectory-dataset 是封存轨迹的数据集工具。它消费 trajectory-reco
 trajectory-recorder ← trajectory-dataset ← train / search-synthesis / 离线分析
 ```
 
-trajectory-dataset 只读取 trajectory-recorder 的封存格式，不依赖 AvZ、pvz-session、trajectory-loader 或任何 native runtime；离线读取数据集不要求启动游戏。
+trajectory-dataset 只读取 trajectory-recorder 的封存格式，不依赖 AvZ Runtime、在线控制后端、trajectory-loader 或任何 native runtime；离线读取数据集不要求启动游戏。
 
 与 trajectory-loader 的分界：
 
