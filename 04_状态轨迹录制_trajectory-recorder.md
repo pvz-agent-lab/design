@@ -24,7 +24,7 @@ TransitionRecord = {
 
 ## producer 和 recorder
 
-AvZ/session/agent-loop 是 producer。它们决定：
+AvZ Runtime、共享控制后端及可选 runner 是 producer。它们决定：
 
 - 哪个边界开始记录；
 - 哪个动作已经提交；
@@ -55,10 +55,14 @@ recorder 不需要知道分支是通过恢复还是重算建立的，也不解�
 - 状态、动作、观察、实际推进量和终止原因的关联；
 - root、parent、branch、segment 的记录关系；
 - 内容身份、哈希链、seal、只读加载和离线校验；
-- 旧 `lvz.*` 格式的显式适配。
+- 具有明确格式版本的兼容适配。
 
 ## 不负责什么
 
 它不启动游戏，不调用 AvZ，不控制 RNG，不执行动作，不推进 tick，不创建执行分支，不决定事件语义，不调用模型，不计算 reward，不管理视频，也不做训练采样。
 
 live recorder 可以存在于 session 外部，也可以由 session 转发 AvZ runtime 的 producer 事件；这不改变 recorder 只记录事实的职责。
+
+## 在线工具集成
+
+在线后端统一提供录制与封存入口，人工、直接 CLI/SDK、搜索及模型路径都可记录；不以模型 runner 的存在为前提。执行句柄由后端管理，Frame/BranchRecord 由 recorder 定义。任务、策略、观察/回退权限和探索配置通过实验 metadata、ArtifactRef 或扩展 receipt 关联，搜索内部结构不进入核心 schema。

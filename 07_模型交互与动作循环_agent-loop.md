@@ -1,39 +1,35 @@
-# agent-loop 模块设计
+# 可选模型与 LLM runner
 
-Repo：`pvz-agent-lab/agent-loop`
+状态：设计草稿。runner 是可选的高层策略运行组件，是否独立建仓待实现确定。
 
 ## 角色
 
-agent-loop 是模型、搜索和游戏会话之间的在线交互循环。它把 observation 交给模型或搜索器，把结果解析成语义动作，再向 pvz-session 请求执行。
-
-## 一次循环
+runner 用在线 SDK 将 observation 交给模型或 LLM，组织上下文与工具调用，并将决策转为语义请求。人、搜索器或 LLM 也可直接使用 CLI/SDK，不要求经过 runner。
 
 ```text
-observe
-  → build model input
-  → model.inference / search
-  → parse action
-  → pvz-session.commit / advance
-  → receive result and S projection
-  → trajectory-recorder
+observe → 模型输入 / LLM 上下文
+        → inference / tool call / 外部 REPL
+        → SDK commit / advance / checkout
+        → 实际结果与证据引用 → 下一次决策
 ```
-
-模型可以是本地推理器、OpenAI Responses API 或其他后端。agent-loop 只使用公开的 session API，不访问游戏地址。
 
 ## 负责什么
 
-- observation 到模型输入的组织；
-- model inference、动作解析和策略约束；
-- request ID、版本、超时、取消和终局处理；
-- 每次 commit 提交一个明确动作，使用上一实际结果的 BoundaryRef 串行提交，保留同 tick 内动作顺序；需要推进时显式调用 advance，不将多个候选动作合并成无序集合；
-- control、intervention、rerun 和 search branch 编排；
-- 在线分支控制根据有效 checkpoint 或保留的 root/动作历史选择恢复或重算，经 session 调用 AvZ；从持久化轨迹建立执行起点时调用离线轨迹加载器 trajectory-loader；
-- 显式选择快速恢复或重算以及回退策略，管理 checkpoint 预算与释放；串行搜索复用 session，并行搜索使用多个 worker，不把临时 checkpoint 假定为可跨进程迁移；
-- 将 producer 事件和动作结果交给 trajectory-recorder；
-- 输出 rollout/episode 引用。
+- 模型后端适配、输入投影、动作解析和策略约束；
+- LLM 对话上下文、工具交互、推理预算与停止条件；
+- 模型/策略版本、任务及实验 metadata；
+- 候选程序在外部的执行状态恢复或重建契约；
+- 每次 commit 使用上一实际结果的 BoundaryRef，显式 advance，处理部分执行和未知结果；
+- 通过 SDK 查询任务、取消和终局，返回 episode/branch 证据引用。
 
-在线分支控制负责搜索树、候选策略和执行计划，session 负责物理宿主与原语调用，两者不重复实现恢复逻辑。checkpoint 缓存按首次生成成本、重复恢复成本和内存预算管理；不能把从 traj 重算生成 checkpoint 当成免费的格式转换。暂不强制把在线分支控制单独建仓。
+## 与控制后端的组合
 
-## 不负责什么
+session、IPC、活动分支、checkpoint 生命周期和 checkout 编排归[共享控制后端](avz/04_共享控制后端.md)。runner 可以发起 checkout，但不重复维护恢复机制。搜索器拥有搜索树、候选选择与探索记忆，可组合 runner 或直接使用 SDK。持久化材料由后端集成 loader 解析。
 
-agent-loop 不实现 RNG、FP、时钟或内存控制，不定义第二套 `S`，不直接启动游戏进程，不读写内存，也不构造训练 batch。搜索缓存和树策略可以作为 agent-loop 内部模块或独立 search repo，但不进入 recorder。
+Runtime/后端统一产生并交付 recorder 所需执行事实；runner 可补充模型调用与策略事件，不能成为动作轨迹唯一的记录入口。
+
+## 状态与边界
+
+游戏状态、候选程序执行状态和求解器记忆分开。游戏回退不自动清空 LLM 的失败经验；评估配置需声明可用观察、回退与预算。外部 Python 计数器/队列若影响候选后续行为，需由 runner 恢复或重建；细节见[SDK 与 REPL](avz/03_在线SDK与REPL.md)。
+
+runner 不启动或清理游戏，不管理原生恢复材料，不定义第二套 S，不读写游戏内存，也不构造训练 batch。原生 AvZ 脚本可以直接经在线工具运行，无需逐步模型循环。
